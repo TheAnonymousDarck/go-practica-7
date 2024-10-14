@@ -6,12 +6,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ .title }}</title>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
-
 <body>
 <h1>Hola Mundo. desde servidor en GO</h1>
 <h3>Total de usuarios registrados {{ .total_users }}</h3>
 <form id="user-form">
+    <input type="hidden" id="user-id" name="id">
     <label for="email">
         Email:
         <input type="email" name="email" required id="email">
@@ -20,7 +21,7 @@
         Nombre:
         <input type="text" name="name" required id="name">
     </label>
-    <button type="submit">Guardar</button>
+    <button type="submit" id="submit-btn">Guardar</button>
 </form>
 <ul id="user-list">
     {{ range .users }}
@@ -31,36 +32,68 @@
 <script>
     const userList = document.getElementById("user-list")
     const userForm = document.getElementById("user-form")
+    const userIdInput = document.getElementById("user-id");
+    const submitBtn = document.getElementById("submit-btn");
     async function saveUser(event) {
-        event.preventDefault()
-        const formData = new FormData(userForm)
+        event.preventDefault();
+
+        const formData = new FormData(userForm);
+        const userId = userIdInput.value;
+
+        if (userId) {
+            // Si hay un ID, actualizamos el usuario existente
+            await updateUser(userId, formData);
+        } else {
+            // Si no hay ID, creamos un nuevo usuario
+            await createUser(formData);
+        }
+
+        userForm.reset(); // Limpiar el formulario después de guardar
+        userIdInput.value = ''; // Limpiar el campo oculto
+        submitBtn.textContent = "Guardar"; // Volver el botón a "Guardar"
+        await getUsers(); // Actualizar la lista de usuarios
+    }
+
+    async function createUser(formData) {
         const response = await fetch('/api/users', {
             method: 'POST',
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(Object.fromEntries(formData))
-        })
-        await getUsers()
+        });
+
+        if (!response.ok) {
+            alert("Error al crear el usuario");
+        }
     }
 
     async function getUsers() {
-        const response = await fetch(
-            '/api/users',
-            {
-                method: 'GET'
-            }
-        )
-        const users = await response.json()
-        userList.innerHTML = ''
-        for (const user of users) {
-            const li = document.createElement('li')
-            const btn = document.createElement('button')
-            btn.textContent = 'Eliminar'
-            btn.addEventListener('click', () => deleteUser(user.id))
-            li.appendChild(document.createTextNode(`${user.name} - ${user.email}`))
-            li.appendChild(btn)
-            userList.appendChild(li)
+        const response = await fetch('/api/users', { method: 'GET' });
+        const users = await response.json();
+        userList.innerHTML = '';
+
+        if (users.length === 0) {
+            userList.innerHTML = '<li>No hay usuarios registrados aún.</li>';
+        } else {
+            users.forEach(user => {
+                const li = document.createElement('li');
+                const btnDelete = document.createElement('button');
+                const btnEdit = document.createElement('button');
+
+                // Botón de eliminar
+                btnDelete.textContent = 'Eliminar';
+                btnDelete.addEventListener('click', () => deleteUser(user.id));
+
+                // Botón de editar
+                btnEdit.textContent = 'Editar';
+                btnEdit.addEventListener('click', () => editUser(user));
+
+                li.appendChild(document.createTextNode(`${user.Name} - ${user.Email}`));
+                li.appendChild(btnEdit);
+                li.appendChild(btnDelete);
+                userList.appendChild(li);
+            });
         }
     }
 
@@ -69,6 +102,36 @@
             method: 'DELETE'
         })
         await getUsers()
+    }
+
+    async function updateUser(id, formData) {
+        console.log(formData.get('user-id'))
+        const data = {
+            Name: formData.get('name'),
+            Email: formData.get('email')
+        }
+        const response = await fetch(`/api/users/${id}`, {
+            method: 'PUT',
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            alert("Error al actualizar el usuario");
+        }
+    }
+
+    function editUser(user) {
+        // Llenar el formulario con los datos del usuario para editar
+        userIdInput.value = user.id;
+        document.getElementById("user-id").value = user.ID;
+        document.getElementById("name").value = user.Name;
+        document.getElementById("email").value = user.Email;
+
+        // Cambiar el botón a "Actualizar"
+        submitBtn.textContent = "Actualizar";
     }
 
     getUsers()
